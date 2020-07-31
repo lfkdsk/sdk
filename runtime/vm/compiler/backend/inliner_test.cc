@@ -194,6 +194,38 @@ ISOLATE_UNIT_TEST_CASE(Inliner_TypedData_Regress7551) {
   RELEASE_ASSERT(unbox_instr->is_truncating());
 }
 
+ISOLATE_UNIT_TEST_CASE(Inliner_Async_Method) {
+  const char* kScript = R"(
+    @pragma('vm:prefer-inline')
+    Future<int> functionToBeInlined() async {
+      var result = await Future.value(1000);
+      return result + 5;
+    }
+
+    void main() async {
+      print(await functionToBeInlined());
+    }
+  )";
+
+  const auto& root_library = Library::Handle(LoadTestScript(kScript));
+  const auto& function = Function::Handle(GetFunction(root_library, "functionToBeInlined"));
+
+  Invoke(root_library, "main");
+
+  TestPipeline pipeline(function, CompilerPass::kJIT);
+  FlowGraph* flow_graph = pipeline.RunPasses({
+      CompilerPass::kComputeSSA,
+      CompilerPass::kApplyICData,
+      CompilerPass::kTryOptimizePatterns,
+      CompilerPass::kSetOuterInliningId,
+      CompilerPass::kTypePropagation,
+      CompilerPass::kApplyClassIds,
+      CompilerPass::kInlining,
+  });
+
+  FlowGraphPrinter::PrintGraph("ILMatcher", flow_graph);
+}
+
 #if defined(DART_PRECOMPILER)
 
 // Verifies that all calls are inlined in List.generate call

@@ -1019,7 +1019,11 @@ class CallSiteInliner : public ValueObject {
         ParsedFunction* parsed_function;
         {
           parsed_function = GetParsedFunction(function, &in_cache);
-          if (!function.CanBeInlined()) {
+          auto caller_modifier = call_data->caller.modifier();
+          auto function_modifier = function.modifier();
+          bool asyncInlined = caller_modifier == FunctionLayout::AsyncModifier::kAsync &&
+           function_modifier == FunctionLayout::AsyncModifier::kAsync;
+          if (!function.CanBeInlined() && !asyncInlined) {
             // As a side effect of parsing the function, it may be marked
             // as not inlinable. This happens for async and async* functions
             // when causal stack traces are being tracked.
